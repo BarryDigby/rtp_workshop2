@@ -48,9 +48,7 @@ ch_gtf = Channel.value(file(params.gtf))
 */
 
 process FASTQC{
-    tag "${base}"
-    publishDir params.outdir, mode: 'copy',
-        saveAs: { params.save_qc_intermediates ? "results/fastqc/${it}" : null }
+    publishDir "${params.outdir}/quality_control/fastqc", mode: 'copy'
 
     input:
     tuple val(base), file(reads) from ch_qc_reads
@@ -82,11 +80,7 @@ process FASTQC{
 */
 
 process TX{
-    publishDir params.outdir, mode: 'copy',
-        saveAs: { params.save_transcriptome ? "results/reference/transcriptome/${it}" : null }
-
-    when:
-    !params.transcriptome && params.fasta
+    publishDir "${params.outdir}/reference", mode: 'copy'
 
     input:
     file(fasta) from ch_fasta
@@ -100,8 +94,6 @@ process TX{
     gffread -F -w "${fasta.baseName}.tx.fa" -g $fasta $gtf
     """
 }
-
-ch_transcriptome = params.transcriptome ? Channel.value(file(params.transcriptome)) : transcriptome_created
 
 /*
 =================================================================
@@ -119,25 +111,17 @@ ch_transcriptome = params.transcriptome ? Channel.value(file(params.transcriptom
 */
 
 process INDEX{
-    publishDir params.outdir, mode: 'copy',
-        saveAs: { params.save_index ? "results/reference/index/${it}" : null }
 
-    when:
-    !params.kallisto_index
 
-    input:
-    file(tx) from ch_transcriptome
 
-    output:
-    file("*.idx") into index_created
 
-    script:
-    """
-    kallisto index -i ${tx.simpleName}.idx $tx
-    """
+
+
+
+
+
+
 }
-
-ch_index = params.kallisto_index ? Channel.value(file(params.kallisto_index)) : index_created
 
 /*
 =============================================================
@@ -151,35 +135,29 @@ ch_index = params.kallisto_index ? Channel.value(file(params.kallisto_index)) : 
 
     Outputs:
     Results folder
+    Log file (pipe stdout to file - &>)
+     - Place logs into kallisto_logs channel
 =============================================================
 */
 
 process KALLISTO_QUANT{
-    tag "${base}"
-    publishDir "${params.outdir}/results/kallisto", mode: 'copy'
 
-    input:
-    tuple val(base), file(reads) from ch_raw_reads
-    file(index) from ch_index
 
-    output:
-    file("${base}") into kallisto_out
-    file("${base}.kallisto.log") into kallisto_logs
 
-    script:
-    """
-    kallisto quant \
-    -i $index \
-    -t 2 \
-    -o ${base}/ \
-    --bias \
-    --pseudobam \
-    $reads &> ${base}.kallisto.log
-    """
+
+
+
+
+
+
+
+
+
+
 }
 
 process MULTIQC{
-    publishDir "${params.outdir}/results/multiqc", mode: 'copy'
+    publishDir "${params.outdir}/quality_control/multiqc", mode: 'copy'
 
     input:
     file(htmls) from ch_multiqc.collect()
@@ -193,7 +171,6 @@ process MULTIQC{
     multiqc .
     """
 }
-
 
 /*
 ================================================================================

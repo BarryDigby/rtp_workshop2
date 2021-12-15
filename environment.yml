@@ -6,3 +6,6 @@ dependencies:
  - multiqc
  - gffread
  - kallisto
+ - samtools
+ - rseqc
+ - qualimap
