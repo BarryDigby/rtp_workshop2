@@ -80,7 +80,7 @@ process FASTQC{
 */
 
 process TX{
-    publishDir "${params.outdir}/reference", mode: 'copy'
+    publishDir "${params.outdir}/results/reference", mode: 'copy'
 
     input:
     file(fasta) from ch_fasta
@@ -111,16 +111,18 @@ process TX{
 */
 
 process INDEX{
+    publishDir "${params.outdir}/results/reference", mode: 'copy'
 
+    input:
+    file(tx) from transcriptome_created
 
+    output:
+    file("*.idx") into index_created
 
-
-
-
-
-
-
-
+    script:
+    """
+    kallisto index -i ${tx.simpleName}.idx $tx
+    """
 }
 
 /*
@@ -135,25 +137,30 @@ process INDEX{
 
     Outputs:
     Results folder
-    Log file (pipe stdout to file - &>)
-     - Place logs into kallisto_logs channel
 =============================================================
 */
 
 process KALLISTO_QUANT{
 
+    publishDir "${params.outdir}/results/kallisto", mode: 'copy'
 
+    input:
+    tuple val(base), file(reads) from ch_raw_reads
+    file(index) from index_created
 
+    output:
+    tuple val(base), file("${base}") into kallisto_out
+    file("${base}.kallisto.log") into kallisto_logs
 
-
-
-
-
-
-
-
-
-
+    script:
+    """
+    kallisto quant \
+    -i $index \
+    -t 2 \
+    -o ${base}/ \
+    --bias \
+    $reads &> ${base}.kallisto.log
+    """
 }
 
 process MULTIQC{
