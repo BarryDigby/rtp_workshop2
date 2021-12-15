@@ -52,6 +52,9 @@ process FASTQC{
     publishDir params.outdir, mode: 'copy',
         saveAs: { params.save_qc_intermediates ? "results/quality_control/fastqc/${it}" : null }
 
+    when:
+    params.run_qc
+
     input:
     tuple val(base), file(reads) from ch_qc_reads
 
