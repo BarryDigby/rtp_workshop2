@@ -1,13 +1,19 @@
 name: test_env
 channels:
  - bioconda
+ - defaults
+ - agbiome
 dependencies:
  - fastqc
  - multiqc
  - gffread
  - kallisto
- - python=2.7.17
  - samtools
  - rseqc
  - qualimap
  - bedtools
+ - bedops
+ - hisat2
+ - stringtie
+ - salmon
+ - bbtools
