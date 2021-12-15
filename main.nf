@@ -50,7 +50,7 @@ ch_gtf = Channel.value(file(params.gtf))
 process FASTQC{
     tag "${base}"
     publishDir params.outdir, mode: 'copy',
-        saveAs: { params.save_qc_intermediates ? "results/fastqc/${it}" : null }
+        saveAs: { params.save_qc_intermediates ? "results/quality_control/fastqc/${it}" : null }
 
     input:
     tuple val(base), file(reads) from ch_qc_reads
@@ -163,7 +163,8 @@ process KALLISTO_QUANT{
     file(index) from ch_index
 
     output:
-    file("${base}") into kallisto_out
+    tuple val(base), file("${base}") into kallisto_out
+    tuple val(base), file("pseudoalignments.bam") into kallisto_bams
     file("${base}.kallisto.log") into kallisto_logs
 
     script:
@@ -175,15 +176,78 @@ process KALLISTO_QUANT{
     --bias \
     --pseudobam \
     $reads &> ${base}.kallisto.log
+
+    samtools sort ${base}/pseudoalignments.bam -o pseudoalignments.bam
+    """
+}
+
+/*
+==========================================================
+ 5. Advanced Quality Control
+    We will use multiple tools on the output BAM files
+    to generate summary statistics. These will be supplied
+    to MultiQC 
+
+    Inputs:
+    Pseudoalignment BAM files
+    Reference GTF file
+
+    Outputs:
+    Too many to list :) 
+=========================================================
+*/
+
+process BAM_STAT{
+    tag "${base}"
+    publishDir params.outdir, mode: 'copy',
+        saveAs: { params.save_qc_intermediates ? "results/quality_control/intermediates/${it}" : null }
+
+    when:
+    params.run_qc
+
+    input:
+    tuple val(base), file(bam) from kallisto_bams
+    file(gtf) from ch_gtf
+
+    output:
+    file("${base}*") into bam_stats
+
+    script:
+    """
+    # Samtools
+    samtools index $bam
+    samtools flagstat $bam > ${base}.flagstat.txt
+    samtools idxstats $bam > ${base}.idxstats.txt
+    samtools stats $bam > ${base}.samstats.txt
+    samtools depth $bam > ${base}.depth.txt
+
+    # Qualimap
+    qualimap bamqc -bam $bam -outdir ${base}_bamqc/
+    # Must use ENSEMBL GTF for below
+    #qualimap rnaseq -bam $bam -gtf $gtf -outdir ${base}_rnaseq/
+
+    # RSEQC
+    gffread -F --keep-exon-attrs $gtf --bed > ${gtf.baseName}.bed
+    infer_experiment.py -i $bam -r ${gtf.baseName}.bed > ${base}.infer_experiment.txt
+    bam_stat.py -i $bam > ${base}.bam_stat.txt
+    inner_distance.py -i $bam -r ${gtf.baseName}.bed -o ${base}
+    read_distribution.py -i $bam -r ${gtf.baseName}.bed > ${base}.read_distribution.txt
+    read_duplication.py -i $bam -o ${base}
+    junction_annotation.py -i $bam -r ${gtf.baseName}.bed -o ${base} 2> ${base}.junction_annotation.txt
+    junction_saturation.py -i $bam -r ${gtf.baseName}.bed > ${base}.junction_saturation.txt
     """
 }
 
 process MULTIQC{
-    publishDir "${params.outdir}/results/multiqc", mode: 'copy'
+    publishDir "${params.outdir}/results/quality_control/multiqc", mode: 'copy'
+
+    when:
+    params.run_qc
 
     input:
     file(htmls) from ch_multiqc.collect()
     file(kallisto_logs) from kallisto_logs.collect()
+    file(bam_stats) from bam_stats.collect()
 
     output:
     file("*.html") into ch_out

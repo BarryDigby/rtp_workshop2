@@ -6,6 +6,8 @@ dependencies:
  - multiqc
  - gffread
  - kallisto
+ - python=2.7.17
  - samtools
  - rseqc
  - qualimap
+ - bedtools
