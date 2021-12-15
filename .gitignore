@@ -7,3 +7,4 @@ results/
 fastqc/
 multiqc/
 dummy_files/
+test_outdir/
